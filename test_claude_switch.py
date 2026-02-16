@@ -133,6 +133,7 @@ class TestCmdAdd:
             name="staging",
             base="https://staging.example.com",
             key="sk-staging-key",
+            auth_token=None,
             model="haiku",
             env=["CUSTOM_VAR=hello"],
             use=False,
@@ -143,11 +144,37 @@ class TestCmdAdd:
         assert profiles["staging"]["env"]["ANTHROPIC_BASE_URL"] == "https://staging.example.com"
         assert profiles["staging"]["env"]["CUSTOM_VAR"] == "hello"
 
+    def test_add_with_auth_token(self, tmp_env):
+        import argparse
+        cs.cmd_add(argparse.Namespace(
+            name="token_profile",
+            base="https://token.example.com",
+            key=None,
+            auth_token="tok-abc123",
+            model="opus",
+            env=None,
+            use=False,
+        ))
+        profiles = cs.load_profiles()
+        assert "token_profile" in profiles
+        assert profiles["token_profile"]["env"]["ANTHROPIC_AUTH_TOKEN"] == "tok-abc123"
+        assert "ANTHROPIC_API_KEY" not in profiles["token_profile"]["env"]
+
+    def test_add_key_and_token_conflict(self, tmp_env):
+        import argparse
+        with pytest.raises(SystemExit):
+            cs.cmd_add(argparse.Namespace(
+                name="conflict",
+                base=None, key="sk-x", auth_token="tok-x",
+                model=None, env=None, use=False,
+            ))
+
     def test_add_duplicate(self, tmp_env):
         import argparse
         with pytest.raises(SystemExit):
             cs.cmd_add(argparse.Namespace(
-                name="prod", base=None, key=None, model=None, env=None, use=False,
+                name="prod", base=None, key=None, auth_token=None,
+                model=None, env=None, use=False,
             ))
 
     def test_add_and_use(self, tmp_env):
@@ -156,6 +183,7 @@ class TestCmdAdd:
             name="new",
             base="https://new.example.com",
             key="sk-new",
+            auth_token=None,
             model="sonnet",
             env=None,
             use=True,
@@ -210,6 +238,16 @@ class TestCmdShow:
         cs.cmd_show(argparse.Namespace())
         captured = capsys.readouterr()
         assert "不匹配" in captured.out
+
+    def test_show_masks_auth_token(self, tmp_env, capsys):
+        import argparse
+        settings = cs.load_settings()
+        settings["env"] = {"ANTHROPIC_AUTH_TOKEN": "tok-secret-value-1234"}
+        cs.save_settings(settings)
+        cs.cmd_show(argparse.Namespace())
+        captured = capsys.readouterr()
+        assert "tok-secr...1234" in captured.out
+        assert "tok-secret-value-1234" not in captured.out
 
 
 class TestCmdList:

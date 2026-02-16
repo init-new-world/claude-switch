@@ -99,7 +99,7 @@ def cmd_show(_args: argparse.Namespace) -> None:
     print(f"model: {settings.get('model', '未设置')}")
     env = settings.get("env", {})
     for k, v in env.items():
-        display = v if "KEY" not in k else v[:8] + "..." + v[-4:]
+        display = v if "KEY" not in k and "TOKEN" not in k else v[:8] + "..." + v[-4:]
         print(f"  {k} = {display}")
 
 
@@ -110,11 +110,16 @@ def cmd_add(args: argparse.Namespace) -> None:
     if name in profiles:
         print(f"错误: profile '{name}' 已存在", file=sys.stderr)
         sys.exit(1)
+    if getattr(args, "key", None) and getattr(args, "auth_token", None):
+        print("错误: --key 和 --auth-token 不能同时使用", file=sys.stderr)
+        sys.exit(1)
     env_pairs: dict[str, str] = {}
     if args.base:
         env_pairs["ANTHROPIC_BASE_URL"] = args.base
-    if args.key:
+    if getattr(args, "key", None):
         env_pairs["ANTHROPIC_API_KEY"] = args.key
+    if getattr(args, "auth_token", None):
+        env_pairs["ANTHROPIC_AUTH_TOKEN"] = args.auth_token
     for item in args.env or []:
         if "=" not in item:
             print(f"错误: --env 格式应为 KEY=VALUE, 得到 '{item}'", file=sys.stderr)
@@ -213,16 +218,32 @@ def cmd_interactive(_args: argparse.Namespace) -> None:
                 print(f"  [{name}] 已存在")
                 continue
             base = _prompt_input("ANTHROPIC_BASE_URL")
-            key = _prompt_input("ANTHROPIC_API_KEY")
+            # 认证方式二选一
+            auth_idx = _prompt_choice("认证方式:", ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"])
+            auth_key_name = "ANTHROPIC_API_KEY" if auth_idx == 0 else "ANTHROPIC_AUTH_TOKEN"
+            auth_value = _prompt_input(auth_key_name)
             model = _prompt_input("model (opus/sonnet/haiku)", "opus")
+            # 模型 ID 设置
+            model_opus = _prompt_input("ANTHROPIC_MODEL_OPUS")
+            model_sonnet = _prompt_input("ANTHROPIC_MODEL_SONNET", model_opus)
+            model_haiku = _prompt_input("ANTHROPIC_MODEL_HAIKU", model_opus)
             extra_env: list[str] = []
+            if model_opus:
+                extra_env.append(f"ANTHROPIC_MODEL_OPUS={model_opus}")
+            if model_sonnet:
+                extra_env.append(f"ANTHROPIC_MODEL_SONNET={model_sonnet}")
+            if model_haiku:
+                extra_env.append(f"ANTHROPIC_MODEL_HAIKU={model_haiku}")
             while True:
                 ev = _prompt_input("额外 env (KEY=VALUE, 留空结束)")
                 if not ev:
                     break
                 extra_env.append(ev)
+            key_arg = auth_value if auth_idx == 0 else None
+            token_arg = auth_value if auth_idx == 1 else None
             cmd_add(argparse.Namespace(
-                name=name, base=base or None, key=key or None,
+                name=name, base=base or None, key=key_arg,
+                auth_token=token_arg,
                 model=model or None, env=extra_env or None, use=False,
             ))
             switch = input("立即切换到此 profile? (y/N) ").strip().lower()
@@ -287,6 +308,7 @@ def main() -> None:
     p_add.add_argument("name", help="profile 名称")
     p_add.add_argument("--base", help="ANTHROPIC_BASE_URL")
     p_add.add_argument("--key", help="ANTHROPIC_API_KEY")
+    p_add.add_argument("--auth-token", help="ANTHROPIC_AUTH_TOKEN (与 --key 二选一)")
     p_add.add_argument("--model", help="模型名称 (opus/sonnet/haiku)")
     p_add.add_argument("--env", action="append", metavar="KEY=VALUE", help="额外环境变量")
     p_add.add_argument("--use", action="store_true", help="添加后立即切换")
