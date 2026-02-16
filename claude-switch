@@ -1,0 +1,311 @@
+#!/usr/bin/env python3
+"""claude-switch: 快速切换 ~/.claude/settings.json 中的 env 和 model 配置."""
+
+import argparse
+import json
+import sys
+import tomllib
+from pathlib import Path
+
+SETTINGS_PATH = Path.home() / ".claude" / "settings.json"
+CONFIG_DIR = Path.home() / ".claude-switch"
+PROFILES_PATH = CONFIG_DIR / "profiles.toml"
+
+
+def load_settings() -> dict:
+    if not SETTINGS_PATH.exists():
+        print(f"错误: {SETTINGS_PATH} 不存在", file=sys.stderr)
+        sys.exit(1)
+    return json.loads(SETTINGS_PATH.read_text())
+
+
+def save_settings(settings: dict) -> None:
+    SETTINGS_PATH.write_text(json.dumps(settings, indent=2, ensure_ascii=False) + "\n")
+
+
+def load_profiles() -> dict:
+    if not PROFILES_PATH.exists():
+        print(f"错误: {PROFILES_PATH} 不存在", file=sys.stderr)
+        print(f"运行 'claude-switch init' 生成初始配置", file=sys.stderr)
+        sys.exit(1)
+    with open(PROFILES_PATH, "rb") as f:
+        data = tomllib.load(f)
+    return data.get("profiles", {})
+
+
+def save_profiles(profiles: dict) -> None:
+    """Rewrite profiles.toml from dict."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    lines = ["# claude-switch profiles\n"]
+    for name, profile in profiles.items():
+        lines.append(f"\n[profiles.{name}]\n")
+        if "model" in profile:
+            lines.append(f'model = "{profile["model"]}"\n')
+        env = profile.get("env", {})
+        if env:
+            lines.append(f"\n[profiles.{name}.env]\n")
+            for k, v in env.items():
+                lines.append(f'{k} = "{v}"\n')
+    PROFILES_PATH.write_text("".join(lines))
+
+
+def find_current_profile(settings: dict, profiles: dict) -> str | None:
+    current_env = settings.get("env", {})
+    current_model = settings.get("model")
+    for name, profile in profiles.items():
+        if profile.get("env") == current_env and profile.get("model") == current_model:
+            return name
+    return None
+
+
+def cmd_list(_args: argparse.Namespace) -> None:
+    settings = load_settings()
+    profiles = load_profiles()
+    current = find_current_profile(settings, profiles)
+    if not profiles:
+        print("没有定义任何 profile")
+        return
+    for name in profiles:
+        marker = " *" if name == current else ""
+        model = profiles[name].get("model", "?")
+        base = profiles[name].get("env", {}).get("ANTHROPIC_BASE_URL", "?")
+        print(f"  {name}{marker}  (model={model}, base={base})")
+
+
+def cmd_use(args: argparse.Namespace) -> None:
+    profiles = load_profiles()
+    name = args.name
+    if name not in profiles:
+        print(f"错误: profile '{name}' 不存在", file=sys.stderr)
+        print(f"可用: {', '.join(profiles.keys())}", file=sys.stderr)
+        sys.exit(1)
+    profile = profiles[name]
+    settings = load_settings()
+    settings["env"] = profile.get("env", {})
+    if "model" in profile:
+        settings["model"] = profile["model"]
+    save_settings(settings)
+    print(f"已切换到 [{name}]")
+
+
+def cmd_show(_args: argparse.Namespace) -> None:
+    settings = load_settings()
+    profiles = load_profiles() if PROFILES_PATH.exists() else {}
+    current = find_current_profile(settings, profiles) if profiles else None
+    if current:
+        print(f"当前 profile: {current}")
+    else:
+        print("当前配置不匹配任何已定义的 profile")
+    print(f"model: {settings.get('model', '未设置')}")
+    env = settings.get("env", {})
+    for k, v in env.items():
+        display = v if "KEY" not in k else v[:8] + "..." + v[-4:]
+        print(f"  {k} = {display}")
+
+
+def cmd_add(args: argparse.Namespace) -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    profiles = load_profiles() if PROFILES_PATH.exists() else {}
+    name = args.name
+    if name in profiles:
+        print(f"错误: profile '{name}' 已存在", file=sys.stderr)
+        sys.exit(1)
+    env_pairs: dict[str, str] = {}
+    if args.base:
+        env_pairs["ANTHROPIC_BASE_URL"] = args.base
+    if args.key:
+        env_pairs["ANTHROPIC_API_KEY"] = args.key
+    for item in args.env or []:
+        if "=" not in item:
+            print(f"错误: --env 格式应为 KEY=VALUE, 得到 '{item}'", file=sys.stderr)
+            sys.exit(1)
+        k, v = item.split("=", 1)
+        env_pairs[k] = v
+    lines = [f"\n[profiles.{name}]\n"]
+    if args.model:
+        lines.append(f'model = "{args.model}"\n')
+    if env_pairs:
+        lines.append(f"\n[profiles.{name}.env]\n")
+        for k, v in env_pairs.items():
+            lines.append(f'{k} = "{v}"\n')
+    if PROFILES_PATH.exists():
+        with open(PROFILES_PATH, "a") as f:
+            f.writelines(lines)
+    else:
+        PROFILES_PATH.write_text("# claude-switch profiles\n" + "".join(lines))
+    print(f"已添加 profile [{name}]")
+    if args.use:
+        args_ns = argparse.Namespace(name=name)
+        cmd_use(args_ns)
+
+
+def cmd_delete(args: argparse.Namespace) -> None:
+    profiles = load_profiles()
+    name = args.name
+    if name not in profiles:
+        print(f"错误: profile '{name}' 不存在", file=sys.stderr)
+        sys.exit(1)
+    if not args.force:
+        confirm = input(f"确认删除 [{name}]? (y/N) ").strip().lower()
+        if confirm != "y":
+            print("已取消")
+            return
+    del profiles[name]
+    save_profiles(profiles)
+    print(f"已删除 profile [{name}]")
+
+
+def _prompt_choice(prompt: str, options: list[str]) -> int:
+    """Show numbered options, return 0-based index."""
+    for i, opt in enumerate(options, 1):
+        print(f"  {i}) {opt}")
+    while True:
+        try:
+            choice = int(input(f"{prompt} "))
+            if 1 <= choice <= len(options):
+                return choice - 1
+        except (ValueError, EOFError):
+            pass
+        print(f"  请输入 1-{len(options)}")
+
+
+def _prompt_input(prompt: str, default: str = "") -> str:
+    """Prompt for input with optional default."""
+    suffix = f" [{default}]" if default else ""
+    val = input(f"{prompt}{suffix}: ").strip()
+    return val or default
+
+
+def cmd_interactive(_args: argparse.Namespace) -> None:
+    while True:
+        print("\n╭─ claude-switch ─╮")
+        settings = load_settings()
+        profiles = load_profiles() if PROFILES_PATH.exists() else {}
+        current = find_current_profile(settings, profiles) if profiles else None
+        if current:
+            print(f"│ 当前: {current} (model={settings.get('model', '?')})")
+        else:
+            print(f"│ 当前: (未匹配) model={settings.get('model', '?')}")
+        print("╰─────────────────╯\n")
+
+        actions = ["切换 profile", "添加 profile", "删除 profile", "查看详情", "退出"]
+        idx = _prompt_choice("选择操作:", actions)
+
+        if idx == 4:  # 退出
+            break
+        elif idx == 0:  # 切换
+            if not profiles:
+                print("  没有可用的 profile")
+                continue
+            names = list(profiles.keys())
+            display = []
+            for n in names:
+                m = profiles[n].get("model", "?")
+                marker = " *" if n == current else ""
+                display.append(f"{n}{marker} (model={m})")
+            choice = _prompt_choice("切换到:", display)
+            cmd_use(argparse.Namespace(name=names[choice]))
+        elif idx == 1:  # 添加
+            name = _prompt_input("Profile 名称")
+            if not name:
+                continue
+            if name in profiles:
+                print(f"  [{name}] 已存在")
+                continue
+            base = _prompt_input("ANTHROPIC_BASE_URL")
+            key = _prompt_input("ANTHROPIC_API_KEY")
+            model = _prompt_input("model (opus/sonnet/haiku)", "opus")
+            extra_env: list[str] = []
+            while True:
+                ev = _prompt_input("额外 env (KEY=VALUE, 留空结束)")
+                if not ev:
+                    break
+                extra_env.append(ev)
+            cmd_add(argparse.Namespace(
+                name=name, base=base or None, key=key or None,
+                model=model or None, env=extra_env or None, use=False,
+            ))
+            switch = input("立即切换到此 profile? (y/N) ").strip().lower()
+            if switch == "y":
+                cmd_use(argparse.Namespace(name=name))
+        elif idx == 2:  # 删除
+            if not profiles:
+                print("  没有可用的 profile")
+                continue
+            names = list(profiles.keys())
+            display = [f"{n} (model={profiles[n].get('model', '?')})" for n in names]
+            choice = _prompt_choice("删除:", display)
+            confirm = input(f"  确认删除 [{names[choice]}]? (y/N) ").strip().lower()
+            if confirm == "y":
+                del profiles[names[choice]]
+                save_profiles(profiles)
+                print(f"  已删除 [{names[choice]}]")
+        elif idx == 3:  # 查看详情
+            cmd_show(argparse.Namespace())
+
+
+def cmd_init(_args: argparse.Namespace) -> None:
+    if PROFILES_PATH.exists():
+        print(f"{PROFILES_PATH} 已存在，跳过", file=sys.stderr)
+        return
+    settings = load_settings()
+    env = settings.get("env", {})
+    model = settings.get("model", "opus")
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    lines = ['# claude-switch profiles\n', '\n', '[profiles.default]\n']
+    lines.append(f'model = "{model}"\n')
+    lines.append('\n')
+    lines.append('[profiles.default.env]\n')
+    for k, v in env.items():
+        lines.append(f'{k} = "{v}"\n')
+    lines.append('\n')
+    lines.append('# 添加更多 profile:\n')
+    lines.append('# [profiles.another]\n')
+    lines.append('# model = "sonnet"\n')
+    lines.append('#\n')
+    lines.append('# [profiles.another.env]\n')
+    lines.append('# ANTHROPIC_BASE_URL = "https://other-api.example.com"\n')
+    lines.append('# ANTHROPIC_API_KEY = "sk-yyy"\n')
+    PROFILES_PATH.write_text("".join(lines))
+    print(f"已生成 {PROFILES_PATH}")
+    print(f"当前配置已保存为 [default] profile")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="claude-switch",
+        description="切换 ~/.claude/settings.json 中的 env 和 model 配置",
+    )
+    sub = parser.add_subparsers(dest="command")
+
+    sub.add_parser("list", help="列出所有 profile")
+    p_use = sub.add_parser("use", help="切换到指定 profile")
+    p_use.add_argument("name", help="profile 名称")
+    sub.add_parser("show", help="显示当前配置")
+    sub.add_parser("init", help="从当前 settings.json 生成初始 profiles.toml")
+    p_add = sub.add_parser("add", help="添加新 profile")
+    p_add.add_argument("name", help="profile 名称")
+    p_add.add_argument("--base", help="ANTHROPIC_BASE_URL")
+    p_add.add_argument("--key", help="ANTHROPIC_API_KEY")
+    p_add.add_argument("--model", help="模型名称 (opus/sonnet/haiku)")
+    p_add.add_argument("--env", action="append", metavar="KEY=VALUE", help="额外环境变量")
+    p_add.add_argument("--use", action="store_true", help="添加后立即切换")
+    p_del = sub.add_parser("delete", help="删除 profile")
+    p_del.add_argument("name", help="profile 名称")
+    p_del.add_argument("-f", "--force", action="store_true", help="跳过确认")
+    sub.add_parser("interactive", aliases=["i"], help="交互式向导")
+
+    args = parser.parse_args()
+    commands = {
+        "list": cmd_list, "use": cmd_use, "show": cmd_show,
+        "init": cmd_init, "add": cmd_add, "delete": cmd_delete,
+        "interactive": cmd_interactive, "i": cmd_interactive,
+    }
+    if args.command in commands:
+        commands[args.command](args)
+    else:
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()
