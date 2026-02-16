@@ -33,6 +33,17 @@ def load_profiles() -> dict:
     return data.get("profiles", {})
 
 
+def _escape_toml_string(s: str) -> str:
+    """Escape string for TOML format."""
+    # 转义反斜杠、双引号、换行符等特殊字符
+    s = s.replace("\\", "\\\\")
+    s = s.replace('"', '\\"')
+    s = s.replace("\n", "\\n")
+    s = s.replace("\t", "\\t")
+    s = s.replace("\r", "\\r")
+    return s
+
+
 def save_profiles(profiles: dict) -> None:
     """Rewrite profiles.toml from dict."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -40,12 +51,14 @@ def save_profiles(profiles: dict) -> None:
     for name, profile in profiles.items():
         lines.append(f"\n[profiles.{name}]\n")
         if "model" in profile:
-            lines.append(f'model = "{profile["model"]}"\n')
+            escaped_model = _escape_toml_string(profile["model"])
+            lines.append(f'model = "{escaped_model}"\n')
         env = profile.get("env", {})
         if env:
             lines.append(f"\n[profiles.{name}.env]\n")
             for k, v in env.items():
-                lines.append(f'{k} = "{v}"\n')
+                escaped_v = _escape_toml_string(v)
+                lines.append(f'{k} = "{escaped_v}"\n')
     PROFILES_PATH.write_text("".join(lines))
 
 
@@ -125,14 +138,20 @@ def cmd_add(args: argparse.Namespace) -> None:
             print(f"错误: --env 格式应为 KEY=VALUE, 得到 '{item}'", file=sys.stderr)
             sys.exit(1)
         k, v = item.split("=", 1)
+        # 去除值外层可能存在的引号（单引号或双引号）
+        v = v.strip()
+        if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+            v = v[1:-1]
         env_pairs[k] = v
     lines = [f"\n[profiles.{name}]\n"]
     if args.model:
-        lines.append(f'model = "{args.model}"\n')
+        escaped_model = _escape_toml_string(args.model)
+        lines.append(f'model = "{escaped_model}"\n')
     if env_pairs:
         lines.append(f"\n[profiles.{name}.env]\n")
         for k, v in env_pairs.items():
-            lines.append(f'{k} = "{v}"\n')
+            escaped_v = _escape_toml_string(v)
+            lines.append(f'{k} = "{escaped_v}"\n')
     if PROFILES_PATH.exists():
         with open(PROFILES_PATH, "a") as f:
             f.writelines(lines)

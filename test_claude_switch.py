@@ -127,6 +127,21 @@ class TestCmdUse:
 
 
 class TestCmdAdd:
+    def test_add_profile_with_quoted_value(self, tmp_env):
+        import argparse
+        cs.cmd_add(argparse.Namespace(
+            name="quoted",
+            base="https://api.example.com",
+            key="sk-test-key",
+            auth_token=None,
+            model="opus",
+            env=['DESCRIPTION=test with "double" quotes'],
+            use=False,
+        ))
+        profiles = cs.load_profiles()
+        assert "quoted" in profiles
+        assert profiles["quoted"]["env"]["DESCRIPTION"] == 'test with "double" quotes'
+
     def test_add_profile(self, tmp_env):
         import argparse
         cs.cmd_add(argparse.Namespace(
