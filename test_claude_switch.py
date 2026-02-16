@@ -245,6 +245,25 @@ class TestCmdShow:
         assert "opus" in captured.out
         assert "sk-test-...5678" in captured.out
 
+    def test_show_with_anthropic_model(self, tmp_env, capsys):
+        import argparse
+        settings = cs.load_settings()
+        settings["env"]["ANTHROPIC_MODEL"] = "claude-3-opus-20250620"
+        settings.pop("model", None)
+        cs.save_settings(settings)
+        cs.cmd_show(argparse.Namespace())
+        captured = capsys.readouterr()
+        assert "claude-3-opus-20250620" in captured.out
+
+    def test_show_with_model_specific_env(self, tmp_env, capsys):
+        import argparse
+        settings = cs.load_settings()
+        settings["env"]["ANTHROPIC_MODEL_OPUS"] = "custom-opus-model"
+        cs.save_settings(settings)
+        cs.cmd_show(argparse.Namespace())
+        captured = capsys.readouterr()
+        assert "custom-opus-model" in captured.out
+
     def test_show_no_match(self, tmp_env, capsys):
         import argparse
         settings = cs.load_settings()
@@ -273,6 +292,44 @@ class TestCmdList:
         assert "prod" in captured.out
         assert "dev" in captured.out
         assert "*" in captured.out
+
+    def test_list_with_anthropic_model_profile(self, tmp_env, capsys):
+        import argparse
+        # 添加一个使用 ANTHROPIC_MODEL 的 profile
+        cs.cmd_add(argparse.Namespace(
+            name="anthropic_model_profile",
+            base="https://test.example.com",
+            key="sk-test-anthropic",
+            auth_token=None,
+            model=None,
+            anthropic_model="claude-3-5-sonnet-20241022",
+            anthropic_small_fast_model="claude-3-5-haiku-20241022",
+            env=None,
+            use=False,
+        ))
+        cs.cmd_list(argparse.Namespace())
+        captured = capsys.readouterr()
+        assert "anthropic_model_profile" in captured.out
+        assert "claude-3-5-sonnet-20241022" in captured.out
+
+    def test_list_with_model_specific_env_profile(self, tmp_env, capsys):
+        import argparse
+        # 添加一个使用 ANTHROPIC_MODEL_OPUS 的 profile
+        cs.cmd_add(argparse.Namespace(
+            name="model_specific_profile",
+            base="https://test.example.com",
+            key="sk-test-specific",
+            auth_token=None,
+            model="opus",
+            anthropic_model=None,
+            anthropic_small_fast_model=None,
+            env=["ANTHROPIC_MODEL_OPUS=custom-opus-2025"],
+            use=False,
+        ))
+        cs.cmd_list(argparse.Namespace())
+        captured = capsys.readouterr()
+        assert "model_specific_profile" in captured.out
+        assert "custom-opus-2025" in captured.out
 
 
 class TestCmdDelete:

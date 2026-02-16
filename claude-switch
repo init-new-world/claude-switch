@@ -80,9 +80,19 @@ def cmd_list(_args: argparse.Namespace) -> None:
         return
     for name in profiles:
         marker = " *" if name == current else ""
-        model = profiles[name].get("model", "?")
-        base = profiles[name].get("env", {}).get("ANTHROPIC_BASE_URL", "?")
-        print(f"  {name}{marker}  (model={model}, base={base})")
+        profile = profiles[name]
+        env = profile.get("env", {})
+        # 决定显示的模型值
+        if "ANTHROPIC_MODEL" in env:
+            model_display = env["ANTHROPIC_MODEL"]
+        elif "model" in profile:
+            model = profile["model"]
+            model_key = f"ANTHROPIC_MODEL_{model.upper()}"
+            model_display = env.get(model_key, model)
+        else:
+            model_display = "?"
+        base = env.get("ANTHROPIC_BASE_URL", "?")
+        print(f"  {name}{marker}  (model={model_display}, base={base})")
 
 
 def cmd_use(args: argparse.Namespace) -> None:
@@ -109,8 +119,17 @@ def cmd_show(_args: argparse.Namespace) -> None:
         print(f"当前 profile: {current}")
     else:
         print("当前配置不匹配任何已定义的 profile")
-    print(f"model: {settings.get('model', '未设置')}")
+    # 决定显示的模型值
     env = settings.get("env", {})
+    if "ANTHROPIC_MODEL" in env:
+        model_display = env["ANTHROPIC_MODEL"]
+    elif "model" in settings:
+        model = settings["model"]
+        model_key = f"ANTHROPIC_MODEL_{model.upper()}"
+        model_display = env.get(model_key, model)
+    else:
+        model_display = "未设置"
+    print(f"model: {model_display}")
     for k, v in env.items():
         display = v if "KEY" not in k and "TOKEN" not in k else v[:8] + "..." + v[-4:]
         print(f"  {k} = {display}")
@@ -213,10 +232,20 @@ def cmd_interactive(_args: argparse.Namespace) -> None:
         settings = load_settings()
         profiles = load_profiles() if PROFILES_PATH.exists() else {}
         current = find_current_profile(settings, profiles) if profiles else None
-        if current:
-            print(f"│ 当前: {current} (model={settings.get('model', '?')})")
+        # 决定显示的模型值
+        env = settings.get("env", {})
+        if "ANTHROPIC_MODEL" in env:
+            model_display = env["ANTHROPIC_MODEL"]
+        elif "model" in settings:
+            model = settings["model"]
+            model_key = f"ANTHROPIC_MODEL_{model.upper()}"
+            model_display = env.get(model_key, model)
         else:
-            print(f"│ 当前: (未匹配) model={settings.get('model', '?')}")
+            model_display = "?"
+        if current:
+            print(f"│ 当前: {current} (model={model_display})")
+        else:
+            print(f"│ 当前: (未匹配) model={model_display}")
         print("╰─────────────────╯\n")
 
         actions = ["切换 profile", "添加 profile", "删除 profile", "查看详情", "退出"]
