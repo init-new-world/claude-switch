@@ -260,9 +260,19 @@ def cmd_interactive(_args: argparse.Namespace) -> None:
             names = list(profiles.keys())
             display = []
             for n in names:
-                m = profiles[n].get("model", "?")
+                profile = profiles[n]
+                env = profile.get("env", {})
+                # 决定显示的模型值
+                if "ANTHROPIC_MODEL" in env:
+                    model_display = env["ANTHROPIC_MODEL"]
+                elif "model" in profile:
+                    model = profile["model"]
+                    model_key = f"ANTHROPIC_MODEL_{model.upper()}"
+                    model_display = env.get(model_key, model)
+                else:
+                    model_display = "?"
                 marker = " *" if n == current else ""
-                display.append(f"{n}{marker} (model={m})")
+                display.append(f"{n}{marker} (model={model_display})")
             choice = _prompt_choice("切换到:", display)
             cmd_use(argparse.Namespace(name=names[choice]))
         elif idx == 1:  # 添加
@@ -325,7 +335,20 @@ def cmd_interactive(_args: argparse.Namespace) -> None:
                 print("  没有可用的 profile")
                 continue
             names = list(profiles.keys())
-            display = [f"{n} (model={profiles[n].get('model', '?')})" for n in names]
+            display = []
+            for n in names:
+                profile = profiles[n]
+                env = profile.get("env", {})
+                # 决定显示的模型值
+                if "ANTHROPIC_MODEL" in env:
+                    model_display = env["ANTHROPIC_MODEL"]
+                elif "model" in profile:
+                    model = profile["model"]
+                    model_key = f"ANTHROPIC_MODEL_{model.upper()}"
+                    model_display = env.get(model_key, model)
+                else:
+                    model_display = "?"
+                display.append(f"{n} (model={model_display})")
             choice = _prompt_choice("删除:", display)
             confirm = input(f"  确认删除 [{names[choice]}]? (y/N) ").strip().lower()
             if confirm == "y":
