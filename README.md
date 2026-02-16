@@ -4,6 +4,8 @@
 
 预定义多组参数组合，一条命令切换 API 密钥、Base URL、模型等。
 
+[English](README.EN.md)
+
 ## 安装
 
 ```bash
@@ -40,6 +42,8 @@ claude-switch init
 claude-switch show
 ```
 
+API 密钥和 Auth Token 自动脱敏显示。
+
 ### 列出所有 profile
 
 ```bash
@@ -56,12 +60,25 @@ claude-switch use <name>
 
 ### 添加新 profile
 
+使用 `--key` 设置 API Key：
+
 ```bash
 claude-switch add myapi \
   --base "https://api.example.com" \
   --key "sk-xxx" \
   --model sonnet \
-  --env "ANTHROPIC_MODEL_SONNET=claude-sonnet-4-5-20250929"
+  --env "ANTHROPIC_MODEL_OPUS=claude-opus-4-6" \
+  --env "ANTHROPIC_MODEL_SONNET=claude-sonnet-4-5-20250929" \
+  --env "ANTHROPIC_MODEL_HAIKU=claude-haiku-4-5-20251001"
+```
+
+或使用 `--auth-token`（与 `--key` 二选一）：
+
+```bash
+claude-switch add myapi \
+  --base "https://api.example.com" \
+  --auth-token "tok-xxx" \
+  --model opus
 ```
 
 添加后立即切换：
@@ -83,7 +100,10 @@ claude-switch delete <name> -f   # 跳过确认
 claude-switch interactive   # 或简写 claude-switch i
 ```
 
-提供菜单式操作：切换、添加、删除 profile，无需记命令。
+提供菜单式操作，向导流程包括：
+- 切换 / 添加 / 删除 profile
+- 认证方式选择（API_KEY 或 AUTH_TOKEN）
+- 模型 ID 设置（设置 OPUS 后，SONNET 和 HAIKU 默认使用相同值）
 
 ## 配置文件格式
 
@@ -97,13 +117,15 @@ model = "opus"
 ANTHROPIC_BASE_URL = "https://api.example.com"
 ANTHROPIC_API_KEY = "sk-xxx"
 ANTHROPIC_MODEL_OPUS = "claude-opus-4-6"
+ANTHROPIC_MODEL_SONNET = "claude-sonnet-4-5-20250929"
+ANTHROPIC_MODEL_HAIKU = "claude-haiku-4-5-20251001"
 
 [profiles.dev]
 model = "sonnet"
 
 [profiles.dev.env]
 ANTHROPIC_BASE_URL = "https://dev.example.com"
-ANTHROPIC_API_KEY = "sk-yyy"
+ANTHROPIC_AUTH_TOKEN = "tok-yyy"
 ```
 
 切换时只替换 `env` 和 `model`，`permissions` 等其他配置保持不变。
@@ -113,54 +135,3 @@ ANTHROPIC_API_KEY = "sk-yyy"
 ```bash
 python3 -m pytest test_claude_switch.py -v
 ```
-
----
-
-# claude-switch (English)
-
-Quickly switch API configurations (env + model) in `~/.claude/settings.json`.
-
-Pre-define multiple parameter sets and switch API keys, Base URLs, and models with a single command.
-
-## Install
-
-```bash
-git clone <repo-url> && cd claude-switch
-
-# Option 1: copy to PATH (recommended)
-cp claude-switch ~/.local/bin/
-
-# Option 2: symlink
-ln -s "$(pwd)/claude-switch" ~/.local/bin/claude-switch
-```
-
-Requires Python 3.11+ (uses built-in `tomllib`, no extra dependencies).
-
-## Usage
-
-```bash
-claude-switch init          # Generate initial profiles from current settings
-claude-switch list          # List all profiles (* = active)
-claude-switch show          # Show current configuration
-claude-switch use <name>    # Switch to a profile
-claude-switch add <name> \  # Add a new profile
-  --base <url> --key <key> --model <model> \
-  --env KEY=VALUE --use
-claude-switch delete <name> # Delete a profile (-f to skip confirm)
-claude-switch interactive   # Interactive wizard (alias: i)
-```
-
-## Config format
-
-`~/.claude-switch/profiles.toml`:
-
-```toml
-[profiles.prod]
-model = "opus"
-
-[profiles.prod.env]
-ANTHROPIC_BASE_URL = "https://api.example.com"
-ANTHROPIC_API_KEY = "sk-xxx"
-```
-
-Only `env` and `model` are replaced on switch; `permissions` and other fields are preserved.
