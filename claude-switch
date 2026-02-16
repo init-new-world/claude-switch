@@ -126,6 +126,9 @@ def cmd_add(args: argparse.Namespace) -> None:
     if getattr(args, "key", None) and getattr(args, "auth_token", None):
         print("错误: --key 和 --auth-token 不能同时使用", file=sys.stderr)
         sys.exit(1)
+    if getattr(args, "model", None) and (getattr(args, "anthropic_model", None) or getattr(args, "anthropic_small_fast_model", None)):
+        print("错误: --model 和 --anthropic-model/--anthropic-small-fast-model 不能同时使用", file=sys.stderr)
+        sys.exit(1)
     env_pairs: dict[str, str] = {}
     if args.base:
         env_pairs["ANTHROPIC_BASE_URL"] = args.base
@@ -133,6 +136,10 @@ def cmd_add(args: argparse.Namespace) -> None:
         env_pairs["ANTHROPIC_API_KEY"] = args.key
     if getattr(args, "auth_token", None):
         env_pairs["ANTHROPIC_AUTH_TOKEN"] = args.auth_token
+    if getattr(args, "anthropic_model", None):
+        env_pairs["ANTHROPIC_MODEL"] = args.anthropic_model
+    if getattr(args, "anthropic_small_fast_model", None):
+        env_pairs["ANTHROPIC_SMALL_FAST_MODEL"] = args.anthropic_small_fast_model
     for item in args.env or []:
         if "=" not in item:
             print(f"错误: --env 格式应为 KEY=VALUE, 得到 '{item}'", file=sys.stderr)
@@ -241,18 +248,31 @@ def cmd_interactive(_args: argparse.Namespace) -> None:
             auth_idx = _prompt_choice("认证方式:", ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"])
             auth_key_name = "ANTHROPIC_API_KEY" if auth_idx == 0 else "ANTHROPIC_AUTH_TOKEN"
             auth_value = _prompt_input(auth_key_name)
-            model = _prompt_input("model (opus/sonnet/haiku)", "opus")
-            # 模型 ID 设置
-            model_opus = _prompt_input("ANTHROPIC_MODEL_OPUS")
-            model_sonnet = _prompt_input("ANTHROPIC_MODEL_SONNET", model_opus)
-            model_haiku = _prompt_input("ANTHROPIC_MODEL_HAIKU", model_opus)
+            # 模型配置方式二选一
+            model_config_idx = _prompt_choice("模型配置方式:", ["model (opus/sonnet/haiku)", "ANTHROPIC_MODEL + ANTHROPIC_SMALL_FAST_MODEL"])
+            model = None
+            anthropic_model = None
+            anthropic_small_fast_model = None
             extra_env: list[str] = []
-            if model_opus:
-                extra_env.append(f"ANTHROPIC_MODEL_OPUS={model_opus}")
-            if model_sonnet:
-                extra_env.append(f"ANTHROPIC_MODEL_SONNET={model_sonnet}")
-            if model_haiku:
-                extra_env.append(f"ANTHROPIC_MODEL_HAIKU={model_haiku}")
+            if model_config_idx == 0:
+                model = _prompt_input("model (opus/sonnet/haiku)", "opus")
+                # 模型 ID 设置
+                model_opus = _prompt_input("ANTHROPIC_MODEL_OPUS")
+                model_sonnet = _prompt_input("ANTHROPIC_MODEL_SONNET", model_opus)
+                model_haiku = _prompt_input("ANTHROPIC_MODEL_HAIKU", model_opus)
+                if model_opus:
+                    extra_env.append(f"ANTHROPIC_MODEL_OPUS={model_opus}")
+                if model_sonnet:
+                    extra_env.append(f"ANTHROPIC_MODEL_SONNET={model_sonnet}")
+                if model_haiku:
+                    extra_env.append(f"ANTHROPIC_MODEL_HAIKU={model_haiku}")
+            else:
+                anthropic_model = _prompt_input("ANTHROPIC_MODEL")
+                anthropic_small_fast_model = _prompt_input("ANTHROPIC_SMALL_FAST_MODEL", anthropic_model)
+                if anthropic_model:
+                    extra_env.append(f"ANTHROPIC_MODEL={anthropic_model}")
+                if anthropic_small_fast_model:
+                    extra_env.append(f"ANTHROPIC_SMALL_FAST_MODEL={anthropic_small_fast_model}")
             while True:
                 ev = _prompt_input("额外 env (KEY=VALUE, 留空结束)")
                 if not ev:
@@ -263,7 +283,10 @@ def cmd_interactive(_args: argparse.Namespace) -> None:
             cmd_add(argparse.Namespace(
                 name=name, base=base or None, key=key_arg,
                 auth_token=token_arg,
-                model=model or None, env=extra_env or None, use=False,
+                model=model or None,
+                anthropic_model=anthropic_model or None,
+                anthropic_small_fast_model=anthropic_small_fast_model or None,
+                env=extra_env or None, use=False,
             ))
             switch = input("立即切换到此 profile? (y/N) ").strip().lower()
             if switch == "y":
@@ -328,7 +351,9 @@ def main() -> None:
     p_add.add_argument("--base", help="ANTHROPIC_BASE_URL")
     p_add.add_argument("--key", help="ANTHROPIC_API_KEY")
     p_add.add_argument("--auth-token", help="ANTHROPIC_AUTH_TOKEN (与 --key 二选一)")
-    p_add.add_argument("--model", help="模型名称 (opus/sonnet/haiku)")
+    p_add.add_argument("--model", help="模型名称 (opus/sonnet/haiku) (与 --anthropic-model 二选一)")
+    p_add.add_argument("--anthropic-model", help="ANTHROPIC_MODEL 值 (与 --model 二选一)")
+    p_add.add_argument("--anthropic-small-fast-model", help="ANTHROPIC_SMALL_FAST_MODEL 值 (默认等于 --anthropic-model)")
     p_add.add_argument("--env", action="append", metavar="KEY=VALUE", help="额外环境变量")
     p_add.add_argument("--use", action="store_true", help="添加后立即切换")
     p_del = sub.add_parser("delete", help="删除 profile")
