@@ -273,8 +273,10 @@ def cmd_interactive(_args: argparse.Namespace) -> None:
                     model_display = "?"
                 marker = " *" if n == current else ""
                 display.append(f"{n}{marker} (model={model_display})")
+            display.append("回到上一层")
             choice = _prompt_choice("切换到:", display)
-            cmd_use(argparse.Namespace(name=names[choice]))
+            if choice < len(names):
+                cmd_use(argparse.Namespace(name=names[choice]))
         elif idx == 1:  # 添加
             name = _prompt_input("Profile 名称")
             if not name:
@@ -284,11 +286,15 @@ def cmd_interactive(_args: argparse.Namespace) -> None:
                 continue
             base = _prompt_input("ANTHROPIC_BASE_URL")
             # 认证方式二选一
-            auth_idx = _prompt_choice("认证方式:", ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"])
+            auth_idx = _prompt_choice("认证方式:", ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "回到上一层"])
+            if auth_idx == 2:
+                continue
             auth_key_name = "ANTHROPIC_API_KEY" if auth_idx == 0 else "ANTHROPIC_AUTH_TOKEN"
             auth_value = _prompt_input(auth_key_name)
             # 模型配置方式二选一
-            model_config_idx = _prompt_choice("模型配置方式:", ["model (opus/sonnet/haiku)", "ANTHROPIC_MODEL + ANTHROPIC_SMALL_FAST_MODEL"])
+            model_config_idx = _prompt_choice("模型配置方式:", ["model (opus/sonnet/haiku)", "ANTHROPIC_MODEL + ANTHROPIC_SMALL_FAST_MODEL", "回到上一层"])
+            if model_config_idx == 2:
+                continue
             model = None
             anthropic_model = None
             anthropic_small_fast_model = None
@@ -349,12 +355,14 @@ def cmd_interactive(_args: argparse.Namespace) -> None:
                 else:
                     model_display = "?"
                 display.append(f"{n} (model={model_display})")
+            display.append("回到上一层")
             choice = _prompt_choice("删除:", display)
-            confirm = input(f"  确认删除 [{names[choice]}]? (y/N) ").strip().lower()
-            if confirm == "y":
-                del profiles[names[choice]]
-                save_profiles(profiles)
-                print(f"  已删除 [{names[choice]}]")
+            if choice < len(names):
+                confirm = input(f"  确认删除 [{names[choice]}]? (y/N) ").strip().lower()
+                if confirm == "y":
+                    del profiles[names[choice]]
+                    save_profiles(profiles)
+                    print(f"  已删除 [{names[choice]}]")
         elif idx == 3:  # 查看详情
             cmd_show(argparse.Namespace())
 
