@@ -67,9 +67,9 @@ claude-switch add myapi \
   --base "https://api.example.com" \
   --key "sk-xxx" \
   --model sonnet \
-  --env "ANTHROPIC_MODEL_OPUS=claude-opus-4-6" \
-  --env "ANTHROPIC_MODEL_SONNET=claude-sonnet-4-5-20250929" \
-  --env "ANTHROPIC_MODEL_HAIKU=claude-haiku-4-5-20251001"
+  --env "ANTHROPIC_DEFAULT_OPUS_MODEL=claude-opus-4-6" \
+  --env "ANTHROPIC_DEFAULT_SONNET_MODEL=claude-sonnet-4-5-20250929" \
+  --env "ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-haiku-4-5-20251001"
 ```
 
 或使用 `--auth-token`（与 `--key` 二选一）：
@@ -116,9 +116,9 @@ model = "opus"
 [profiles.prod.env]
 ANTHROPIC_BASE_URL = "https://api.example.com"
 ANTHROPIC_API_KEY = "sk-xxx"
-ANTHROPIC_MODEL_OPUS = "claude-opus-4-6"
-ANTHROPIC_MODEL_SONNET = "claude-sonnet-4-5-20250929"
-ANTHROPIC_MODEL_HAIKU = "claude-haiku-4-5-20251001"
+ANTHROPIC_DEFAULT_OPUS_MODEL = "claude-opus-4-6"
+ANTHROPIC_DEFAULT_SONNET_MODEL = "claude-sonnet-4-5-20250929"
+ANTHROPIC_DEFAULT_HAIKU_MODEL = "claude-haiku-4-5-20251001"
 
 [profiles.dev]
 model = "sonnet"
