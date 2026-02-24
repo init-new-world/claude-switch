@@ -258,7 +258,7 @@ class TestCmdShow:
     def test_show_with_model_specific_env(self, tmp_env, capsys):
         import argparse
         settings = cs.load_settings()
-        settings["env"]["ANTHROPIC_MODEL_OPUS"] = "custom-opus-model"
+        settings["env"]["ANTHROPIC_DEFAULT_OPUS_MODEL"] = "custom-opus-model"
         cs.save_settings(settings)
         cs.cmd_show(argparse.Namespace())
         captured = capsys.readouterr()
@@ -303,7 +303,6 @@ class TestCmdList:
             auth_token=None,
             model=None,
             anthropic_model="claude-3-5-sonnet-20241022",
-            anthropic_small_fast_model="claude-3-5-haiku-20241022",
             env=None,
             use=False,
         ))
@@ -314,7 +313,7 @@ class TestCmdList:
 
     def test_list_with_model_specific_env_profile(self, tmp_env, capsys):
         import argparse
-        # 添加一个使用 ANTHROPIC_MODEL_OPUS 的 profile
+        # 添加一个使用 ANTHROPIC_DEFAULT_OPUS_MODEL 的 profile
         cs.cmd_add(argparse.Namespace(
             name="model_specific_profile",
             base="https://test.example.com",
@@ -322,8 +321,7 @@ class TestCmdList:
             auth_token=None,
             model="opus",
             anthropic_model=None,
-            anthropic_small_fast_model=None,
-            env=["ANTHROPIC_MODEL_OPUS=custom-opus-2025"],
+            env=["ANTHROPIC_DEFAULT_OPUS_MODEL=custom-opus-2025"],
             use=False,
         ))
         cs.cmd_list(argparse.Namespace())
