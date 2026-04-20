@@ -11,11 +11,12 @@ Pre-define multiple parameter sets and switch API keys, Base URLs, and models wi
 ```bash
 git clone <repo-url> && cd claude-switch
 
-# Option 1: copy to PATH (recommended)
-cp claude-switch ~/.local/bin/
-
-# Option 2: symlink
+# Option 1: symlink to PATH (recommended)
 ln -s "$(pwd)/claude-switch" ~/.local/bin/claude-switch
+
+# Option 2: copy project to PATH
+cp claude-switch ~/.local/bin/
+cp -r claude_switch ~/.local/bin/
 
 # Option 3: run directly
 ./claude-switch
@@ -54,7 +55,8 @@ claude-switch list
 ### Switch profile
 
 ```bash
-claude-switch use <name>
+claude-switch use <name>           # switch directly
+claude-switch use <name> --dry-run # preview changes without applying
 ```
 
 ### Add a new profile
@@ -93,6 +95,18 @@ claude-switch delete <name>      # with confirmation prompt
 claude-switch delete <name> -f   # skip confirmation
 ```
 
+### Rename a profile
+
+```bash
+claude-switch rename <old-name> <new-name>
+```
+
+### Copy a profile
+
+```bash
+claude-switch copy <source> <target>
+```
+
 ### Interactive wizard
 
 ```bash
@@ -103,6 +117,12 @@ Menu-driven interface with guided flows for:
 - Switching / adding / deleting profiles
 - Auth method selection (API_KEY or AUTH_TOKEN)
 - Model ID setup (after setting OPUS, SONNET and HAIKU default to the same value)
+
+### Show version
+
+```bash
+claude-switch --version
+```
 
 ## Config format
 
@@ -127,7 +147,20 @@ ANTHROPIC_BASE_URL = "https://dev.example.com"
 ANTHROPIC_AUTH_TOKEN = "tok-yyy"
 ```
 
-Only `env` and `model` are replaced on switch; `permissions` and other fields are preserved.
+Only `env` and `model` are replaced on switch; `permissions` and other fields are preserved. A backup is automatically saved to `settings.json.bak` before each write.
+
+## Use as a Python library
+
+```python
+from claude_switch.commands import cmd_use, cmd_list
+from claude_switch.errors import ClaudeSwitchError
+
+try:
+    print(cmd_list())
+    cmd_use("prod")
+except ClaudeSwitchError as e:
+    print(f"Error: {e}")
+```
 
 ## Tests
 

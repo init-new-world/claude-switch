@@ -12,11 +12,12 @@
 # 克隆仓库
 git clone <repo-url> && cd claude-switch
 
-# 方式一：复制到 PATH（推荐）
-cp claude-switch ~/.local/bin/
-
-# 方式二：symlink 到 PATH
+# 方式一：symlink 到 PATH（推荐）
 ln -s "$(pwd)/claude-switch" ~/.local/bin/claude-switch
+
+# 方式二：复制整个项目到 PATH
+cp claude-switch ~/.local/bin/
+cp -r claude_switch ~/.local/bin/
 
 # 方式三：直接运行
 ./claude-switch
@@ -55,7 +56,8 @@ claude-switch list
 ### 切换 profile
 
 ```bash
-claude-switch use <name>
+claude-switch use <name>           # 直接切换
+claude-switch use <name> --dry-run # 预览将要写入的配置
 ```
 
 ### 添加新 profile
@@ -94,6 +96,18 @@ claude-switch delete <name>      # 带确认提示
 claude-switch delete <name> -f   # 跳过确认
 ```
 
+### 重命名 profile
+
+```bash
+claude-switch rename <旧名称> <新名称>
+```
+
+### 复制 profile
+
+```bash
+claude-switch copy <源名称> <目标名称>
+```
+
 ### 交互式向导
 
 ```bash
@@ -104,6 +118,12 @@ claude-switch interactive   # 或简写 claude-switch i
 - 切换 / 添加 / 删除 profile
 - 认证方式选择（API_KEY 或 AUTH_TOKEN）
 - 模型 ID 设置（设置 OPUS 后，SONNET 和 HAIKU 默认使用相同值）
+
+### 查看版本
+
+```bash
+claude-switch --version
+```
 
 ## 配置文件格式
 
@@ -128,7 +148,20 @@ ANTHROPIC_BASE_URL = "https://dev.example.com"
 ANTHROPIC_AUTH_TOKEN = "tok-yyy"
 ```
 
-切换时只替换 `env` 和 `model`，`permissions` 等其他配置保持不变。
+切换时只替换 `env` 和 `model`，`permissions` 等其他配置保持不变。保存 settings.json 前会自动备份到 `settings.json.bak`。
+
+## 作为 Python 库使用
+
+```python
+from claude_switch.commands import cmd_use, cmd_list
+from claude_switch.errors import ClaudeSwitchError
+
+try:
+    print(cmd_list())
+    cmd_use("prod")
+except ClaudeSwitchError as e:
+    print(f"错误: {e}")
+```
 
 ## 测试
 
